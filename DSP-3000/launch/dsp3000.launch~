@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="dsp-3000" type="dsp3000" name="dsp3000" respawn="true">
+        <param name="port" type="string" value="/dev/clearpath/fog"/>
+    </node>
+</launch>
