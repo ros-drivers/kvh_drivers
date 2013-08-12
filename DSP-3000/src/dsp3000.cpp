@@ -26,7 +26,7 @@ int main(int argc, char **argv)
   // Define the publisher topic name
   ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
 
-  ros::Rate loop_rate(100);
+  //ros::Rate loop_rate(100);
 
   cereal::CerealPort device;
 
@@ -46,38 +46,18 @@ int main(int argc, char **argv)
   // Configure the DSP-3000.
   // Start by zeroing the sensor.  Write three times, to ensure it is received (according to datasheet)
   ROS_INFO("Zeroing the DSP-3000.");
-  try{ device.write("Z", 1); }
+  try{ device.write("ZZZ", 3); }
   catch(cereal::TimeoutException& e)
     {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("Z", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("Z", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-            ROS_ERROR("Timeout!");
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
 
   // Set to "Rate" output.  R=Rate, A=Incremental Angle, P=Integrated Angle
   ROS_INFO("Configuring for Rate output.");
-  try{ device.write("R", 1); }
+  try{ device.write("RRR", 3); }
   catch(cereal::TimeoutException& e)
     {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("R", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("R", 1); }        
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
 
   while (ros::ok())
