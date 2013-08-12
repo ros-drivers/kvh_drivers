@@ -8,7 +8,7 @@
 #include <vector>
 #include <sstream>
 
-#const TIMEOUT 1000
+const int TIMEOUT=1000;
 
 using namespace std;
 
@@ -94,11 +94,11 @@ int main(int argc, char **argv)
     dsp_out.data = rotate;
 
     //Publish the joint state message
-    chatter_pub.publish(dsp_out);
+    dsp3000_pub.publish(dsp_out);
 
     ros::spinOnce();
 
-    loop_rate.sleep();
+    //loop_rate.sleep();
 
   }
 
