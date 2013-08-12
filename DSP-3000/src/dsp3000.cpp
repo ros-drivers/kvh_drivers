@@ -8,7 +8,7 @@
 #include <vector>
 #include <sstream>
 
-#define TIMEOUT 1000
+#const TIMEOUT 1000
 
 using namespace std;
 
@@ -24,9 +24,9 @@ int main(int argc, char **argv)
   n.param<std::string>("port", port_name, "/dev/ttyUSB0");
 
   // Define the publisher topic name
-  ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
+  ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
 
-  ros::Rate loop_rate(100);
+  //ros::Rate loop_rate(100);
 
   cereal::CerealPort device;
 
@@ -46,38 +46,18 @@ int main(int argc, char **argv)
   // Configure the DSP-3000.
   // Start by zeroing the sensor.  Write three times, to ensure it is received (according to datasheet)
   ROS_INFO("Zeroing the DSP-3000.");
-  try{ device.write("Z", 1); }
+  try{ device.write("ZZZ", 3); }
   catch(cereal::TimeoutException& e)
     {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("Z", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("Z", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-            ROS_ERROR("Timeout!");
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
 
   // Set to "Rate" output.  R=Rate, A=Incremental Angle, P=Integrated Angle
   ROS_INFO("Configuring for Rate output.");
-  try{ device.write("R", 1); }
+  try{ device.write("RRR", 3); }
   catch(cereal::TimeoutException& e)
     {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("R", 1); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
-    }
-  try{ device.write("R", 1); }        
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Timeout!");
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
 
   while (ros::ok())
@@ -87,7 +67,7 @@ int main(int argc, char **argv)
     try{ device.readLine(reply, TIMEOUT); }
     catch(cereal::TimeoutException& e)
       {
-        ROS_ERROR("Timeout!");
+        ROS_ERROR("Unable to communicate with DSP-3000 device.");
       }
 
     string str(reply);
@@ -102,12 +82,12 @@ int main(int argc, char **argv)
     rotate = atof(tokens[0].c_str());
     valid = atoi(tokens[1].c_str());
 
-    /* Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
-    data being output is OK.
-    ROS_INFO("Rotation Velocity: %f", rotate);
+    // Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
+    //data being output is OK.
+    ROS_DEBUG("DSP-3000 Output: %f", rotate);
     if (valid==1)
-         ROS_INFO("Data is valid");
-    */
+         ROS_DEBUG("Data is valid");
+    
 
     //Declare the sensor message
     std_msgs::Float32 dsp_out;
