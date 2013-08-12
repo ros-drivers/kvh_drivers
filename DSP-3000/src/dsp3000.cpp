@@ -8,7 +8,7 @@
 #include <vector>
 #include <sstream>
 
-#define TIMEOUT 1000
+#const TIMEOUT 1000
 
 using namespace std;
 
