@@ -102,12 +102,12 @@ int main(int argc, char **argv)
     rotate = atof(tokens[0].c_str());
     valid = atoi(tokens[1].c_str());
 
-    /* Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
-    data being output is OK.
-    ROS_INFO("Rotation Velocity: %f", rotate);
+    // Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
+    //data being output is OK.
+    ROS_DEBUG("DSP-3000 Output: %f", rotate);
     if (valid==1)
-         ROS_INFO("Data is valid");
-    */
+         ROS_DEBUG("Data is valid");
+    
 
     //Declare the sensor message
     std_msgs::Float32 dsp_out;
