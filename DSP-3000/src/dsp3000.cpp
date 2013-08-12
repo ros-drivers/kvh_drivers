@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   n.param<std::string>("port", port_name, "/dev/ttyUSB0");
 
   // Define the publisher topic name
-  ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
+  ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
 
   //ros::Rate loop_rate(100);
 
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     try{ device.readLine(reply, TIMEOUT); }
     catch(cereal::TimeoutException& e)
       {
-        ROS_ERROR("Timeout!");
+        ROS_ERROR("Unable to communicate with DSP-3000 device.");
       }
 
     string str(reply);
