@@ -30,6 +30,8 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_executable(dsp3000 src/dsp3000.cpp)
-
+rosbuild_link_boost(dsp3000 thread)
+include_directories(cereal_port/include)
 target_link_libraries(dsp3000 cereal_port)
 
+add_subdirectory(cereal_port)
