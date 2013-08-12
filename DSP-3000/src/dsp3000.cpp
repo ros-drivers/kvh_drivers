@@ -9,6 +9,7 @@
 #include <sstream>
 
 const int TIMEOUT=1000;
+const float PI=3.14159265359;
 
 using namespace std;
 
@@ -84,14 +85,14 @@ int main(int argc, char **argv)
 
     // Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
     //data being output is OK.
-    ROS_DEBUG("DSP-3000 Output: %f", rotate);
+    ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
     if (valid==1)
          ROS_DEBUG("Data is valid");
     
 
     //Declare the sensor message
     std_msgs::Float32 dsp_out;
-    dsp_out.data = rotate;
+    dsp_out.data = (rotate * PI) / 180;
 
     //Publish the joint state message
     dsp3000_pub.publish(dsp_out);
