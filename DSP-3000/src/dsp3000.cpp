@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   // Grab the port name passed by the launch file.  If the launch file was not used, or the desired
   // port is not present, default to /dev/ttyUSB0.
   string port_name;
-  n.param<std::string>("port", port_name, "/dev/ttyUSB0");
+  ros::param::param<std::string>("~port", port_name, "/dev/ttyUSB0");
 
   // Define the publisher topic name
   ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
