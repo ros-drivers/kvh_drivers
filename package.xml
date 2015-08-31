@@ -1,0 +1,32 @@
+<package>
+  <name>dsp3000</name>
+  <version>1.0.0</version>
+  <description>A driver for the KVH DSP-3000 single-axis Fiber Optic Gyroscope.</description>
+  <maintainer email="jschmidt@clearpathrobotics.com">Jeff Schmidt</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">None</url>
+  <!-- <url type="bugtracker"></url> -->
+
+  <author>Jeff Schmidt</author>
+
+  <!-- Dependencies which this package needs to build itself. -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Dependencies needed to compile this package. -->
+  <build_depend>roscpp</build_depend>
+  <build_depend>roslint</build_depend>
+  <build_depend>roslaunch</build_depend>
+
+  <!-- Dependencies needed after this package is compiled. -->
+  <run_depend>roscpp</run_depend>
+
+  <!-- Dependencies needed only for running tests. -->
+  <!-- <test_depend>roscpp</test_depend> -->
+
+<export>
+    <cpp lflags="-L${prefix}/lib -Wl,-rpath,${prefix}/lib -ldsp3000" cflags="-I${prefix}/include"/>
+</export>
+
+</package>
