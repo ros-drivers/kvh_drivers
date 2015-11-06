@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 
   configure_dsp3000(&device);
   device.flush();
-  static const int TEMP_BUFFER_SIZE = 64;
+  static const int TEMP_BUFFER_SIZE = 128;
   char temp_buffer[TEMP_BUFFER_SIZE];
   while (ros::ok())
   {
