@@ -44,7 +44,7 @@
 #include <sstream>
 
 const int TIMEOUT=1000;
-const float PI=3.14159265359;
+const float PI=3.14159265359f;
 
 using namespace std;
 
@@ -93,10 +93,6 @@ int main(int argc, char **argv)
 
   cereal::CerealPort device;
 
-  float rotate;
-  bool valid;
-  ROS_DEBUG("STARTED");
-
   // Open a port as defined in the launch file.  The DSP-3000 baud rate is 38400.
   try{ device.open(port_name.c_str(), 38400); }
   catch(cereal::Exception& e)
@@ -107,53 +103,60 @@ int main(int argc, char **argv)
   ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
 
   configure_dsp3000(&device);
+  device.flush();
   static const int TEMP_BUFFER_SIZE = 64;
   char temp_buffer[TEMP_BUFFER_SIZE];
   while (ros::ok())
   {
     // Get the reply, the last value is the timeout in ms
-    try{ device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT); }
+    int temp_buffer_length = 0;
+    try
+    {
+        temp_buffer_length = device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
+    }
     catch(cereal::TimeoutException& e)
-      {
+    {
         ROS_ERROR("Unable to communicate with DSP-3000 device.");
-      }
+    }
 
-    string str(temp_buffer); // A buffer string
-    stringstream ss(str); // Insert the string into a stream
-    vector<string> tokens; // Create a vector to hold the words
-
+    static const char *ENDING_SEQUENCE = "\r\n";
+    static const int ENDING_SEQUENCE_LENGTH = strlen(ENDING_SEQUENCE);
+    string str(temp_buffer, temp_buffer_length-ENDING_SEQUENCE_LENGTH);
+    stringstream ss(str);
+    vector<string> tokens;
     string ss_buf;
     while (ss >> ss_buf)
       tokens.push_back(ss_buf);
 
-    if (2 == tokens.size())
+    if (!(tokens.size()&1))
     {
-    	// Extract the data we want from the string vector.
-    	rotate = atof(tokens[0].c_str());
-    	valid = (1 == atoi(tokens[1].c_str()) ? true : false);
+        // Extra loop to publish extra readings
+        for (int offset = 0; offset < tokens.size() / 2; offset+=2)
+        {
+            const float rotate = atof(tokens[offset].c_str());
+            const bool data_is_valid = (1 == atoi(tokens[offset+1].c_str()) ? true : false);
 
-    	// Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
-    	//data being output is OK.
-    	ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
-    	if (valid)
-    	     ROS_DEBUG("Data is valid");
-    	
+            ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
+            if (data_is_valid)
+                 ROS_DEBUG("Data is valid");
 
-    	//Declare the sensor message
-    	std_msgs::Float32 dsp_out;
-    	dsp_out.data = (rotate * PI) / 180;
+            //Declare the sensor message
+            std_msgs::Float32 dsp_out;
+            dsp_out.data = (rotate * PI) / 180.0f;
 
-    	//Publish the joint state message
-    	dsp3000_pub.publish(dsp_out);
+            //Publish the joint state message
+            dsp3000_pub.publish(dsp_out);
+        }
     }
     else
     {
-	ROS_WARN("bad data. Received data of length %i", static_cast<int>(tokens.size()));
+        ROS_WARN("Bad data. Received data \"%s\" of length %i",
+                 ss.str().c_str(),
+                 static_cast<int>(tokens.size()));
     }
 
     ros::spinOnce();
   }
 
   return 0;
-
 }
