@@ -43,21 +43,59 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include <tuple>
 
 const int TIMEOUT = 1000;
 const float PI = 3.14159265359f;
 
-using namespace std;
+using std::string;
+using std::stringstream;
+using std::vector;
+using std::tuple;
+using std::get;
 
-bool configure_dsp3000(cereal::CerealPort *const device)
+enum Mode
+{
+  KVH_DSP3000_RATE = 0,
+  KVH_DSP3000_INCREMENTAL_ANGLE,
+  KVH_DSP3000_INTEGRATED_ANGLE
+};
+
+///@return serial string, mode name
+tuple<string, string> get_mode_data(Mode mode);
+bool configure_dsp3000(cereal::CerealPort * device, Mode mode);
+
+tuple<string, string> get_mode_data(Mode const mode)
+{
+  tuple<string, string> output;
+  switch (mode)
+  {
+    case KVH_DSP3000_RATE:
+      get<0>(output) = "RRR";
+      get<1>(output) = "rate";
+      break;
+    case KVH_DSP3000_INCREMENTAL_ANGLE:
+      get<0>(output) = "AAA";
+      get<1>(output) = "incremental angle";
+      break;
+    case KVH_DSP3000_INTEGRATED_ANGLE:
+      get<0>(output) = "PPP";
+      get<1>(output) = "integrated angle";
+      break;
+    default:
+      assert(!"mode not understood");
+  }
+  return output;
+}
+
+bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
 {
   bool output = true;
 
-  // Start by zeroing the sensor.  Write three times, to ensure it is received
-  // (according to datasheet)
   ROS_INFO("Zeroing the DSP-3000.");
   try
   {
+    // Start by zeroing the sensor.  Write three times, to ensure it is received
     device->write("ZZZ", 3);
   }
   catch (cereal::TimeoutException &e)
@@ -65,22 +103,20 @@ bool configure_dsp3000(cereal::CerealPort *const device)
     ROS_ERROR("Unable to communicate with DSP-3000 device.");
     output = false;
   }
-  // ros::Duration(0.1).sleep();
 
   if (output)
   {
-    // Set to "Rate" output.  R=Rate, A=Incremental Angle, P=Integrated Angle
-    ROS_INFO("Configuring for Rate output.");
+    tuple<string, string> mode_data(get_mode_data(mode));
+    ROS_INFO("Configuring for %s output.", get<1>(mode_data).c_str());
     try
     {
-      device->write("RRR", 3);
+      device->write(get<0>(mode_data).c_str(), get<0>(mode_data).size());
     }
     catch (cereal::TimeoutException &e)
     {
       ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
   }
-  // ros::Duration(0.1).sleep();
 
   return output;
 }
@@ -89,21 +125,24 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "dsp3000");
 
-  ros::NodeHandle n;
-
-  // Grab the port name passed by the launch file.  If the launch file was not
-  // used, or the desired
-  // port is not present, default to /dev/ttyUSB0.
   string port_name;
   ros::param::param<std::string>("~port", port_name, "/dev/ttyUSB0");
+  int32_t mode;
+  ros::param::param<int32_t>("~mode", mode, KVH_DSP3000_RATE);
+  if (mode != KVH_DSP3000_RATE &&
+      mode != KVH_DSP3000_INCREMENTAL_ANGLE &&
+      mode != KVH_DSP3000_INTEGRATED_ANGLE)
+  {
+    ROS_ERROR("bad mode: %d", mode);
+    return EXIT_FAILURE;
+  }
 
   // Define the publisher topic name
+  ros::NodeHandle n;
   ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>("dsp3000", 10);
 
   cereal::CerealPort device;
 
-  // Open a port as defined in the launch file.  The DSP-3000 baud rate is
-  // 38400.
   try
   {
     device.open(port_name.c_str(), 38400);
@@ -111,11 +150,11 @@ int main(int argc, char **argv)
   catch (cereal::Exception &e)
   {
     ROS_FATAL("Failed to open the serial port!!!");
-    ROS_BREAK();
+    return EXIT_FAILURE;
   }
   ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
 
-  configure_dsp3000(&device);
+  configure_dsp3000(&device, static_cast<Mode>(mode));
   device.flush();
   static const int TEMP_BUFFER_SIZE = 128;
   char temp_buffer[TEMP_BUFFER_SIZE];
@@ -145,7 +184,7 @@ int main(int argc, char **argv)
     if (!(tokens.size() & 1))
     {
       // Extra loop to publish extra readings
-      for (int offset = 0; offset < tokens.size() / 2; offset += 2)
+      for (size_t offset = 0; offset < tokens.size() / 2; offset += 2)
       {
         const float rotate = atof(tokens[offset].c_str());
         const bool data_is_valid =
