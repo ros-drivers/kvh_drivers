@@ -149,7 +149,7 @@ int main(int argc, char **argv)
   }
   catch (cereal::Exception &e)
   {
-    ROS_FATAL("Failed to open the serial port!!!");
+    ROS_FATAL("%s", e.what());
     return EXIT_FAILURE;
   }
   ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
@@ -158,6 +158,7 @@ int main(int argc, char **argv)
   device.flush();
   static const int TEMP_BUFFER_SIZE = 128;
   char temp_buffer[TEMP_BUFFER_SIZE];
+  ros::Rate sleep_before_error(10);
   while (ros::ok())
   {
     // Get the reply, the last value is the timeout in ms
@@ -170,7 +171,18 @@ int main(int argc, char **argv)
     catch (cereal::TimeoutException &e)
     {
       ROS_ERROR("Unable to communicate with DSP-3000 device.");
+      continue;
     }
+    catch (cereal::Exception &e)
+    {
+      int32_t constexpr INTERRUPTED_SYSTEM_CALL_ERRNO = 4;
+      if (INTERRUPTED_SYSTEM_CALL_ERRNO != errno)
+      {
+        ROS_ERROR("%s", e.what());
+      }
+      continue;
+    }
+
 
     static const char *ENDING_SEQUENCE = "\r\n";
     static const int ENDING_SEQUENCE_LENGTH = strlen(ENDING_SEQUENCE);
