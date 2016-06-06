@@ -8,6 +8,7 @@ catkin_package(
 )
 
 include_directories(cereal_port/include)
+include_directories(${catkin_INCLUDE_DIRS})
 add_definitions("-std=c++11 -Wall -Wextra -Werror")
 
 add_subdirectory(cereal_port)
