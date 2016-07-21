@@ -1,6 +1,4 @@
-KVH
+DSP3000
 ===
 
-A repo for KVH Gyros.  Currently contains ROS drivers for the following devices:
-
-DSP-3000 Fiber Optic Gyro
+A repo for the DSP-3000 Fiber Optic Gyro
