@@ -1,5 +1,5 @@
 <package>
-  <name>dsp3000</name>
+  <name>kvh</name>
   <version>1.0.0</version>
   <description>A driver for the KVH DSP-3000 single-axis Fiber Optic Gyroscope.</description>
   <maintainer email="jschmidt@clearpathrobotics.com">Jeff Schmidt</maintainer>
