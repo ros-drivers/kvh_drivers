@@ -6,7 +6,7 @@
  *		Serial interface handled by cereal_port
  *  \author     Jeff Schmidt <jschmidt@clearpathrobotics.com>
  *  \copyright  Copyright (c) 2013, Clearpath Robotics, Inc.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -17,8 +17,9 @@
  *     * Neither the name of Clearpath Robotics, Inc. nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL CLEARPATH ROBOTICS, INC. BE LIABLE FOR ANY
@@ -28,116 +29,227 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * Please send comments, questions, or patches to code@clearpathrobotics.com 
+ *
+ * Please send comments, questions, or patches to code@clearpathrobotics.com
  *
  */
 
+#include "cereal_port/CerealPort.h"
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
-#include "cereal_port/CerealPort.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
 #include <math.h>
-#include <vector>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <vector>
+#include <tuple>
 
-const int TIMEOUT=1000;
-const float PI=3.14159265359;
+const int TIMEOUT = 1000;
+const float PI = 3.14159265359f;
 
-using namespace std;
+using std::string;
+using std::stringstream;
+using std::vector;
+using std::tuple;
+using std::get;
+
+enum Mode
+{
+  KVH_DSP3000_RATE = 0,
+  KVH_DSP3000_INCREMENTAL_ANGLE,
+  KVH_DSP3000_INTEGRATED_ANGLE
+};
+
+///@return serial string, mode name
+tuple<string, string> get_mode_data(Mode mode);
+
+bool configure_dsp3000(cereal::CerealPort *device, Mode mode);
+
+string get_mode_topic_name(Mode const mode);
+
+tuple<string, string> get_mode_data(Mode const mode)
+{
+  tuple<string, string> output;
+  switch (mode)
+  {
+    case KVH_DSP3000_RATE:
+      get<0>(output) = "RRR";
+      get<1>(output) = "rate";
+      break;
+    case KVH_DSP3000_INCREMENTAL_ANGLE:
+      get<0>(output) = "AAA";
+      get<1>(output) = "incremental angle";
+      break;
+    case KVH_DSP3000_INTEGRATED_ANGLE:
+      get<0>(output) = "PPP";
+      get<1>(output) = "integrated angle";
+      break;
+    default:
+      assert(!"mode not understood");
+  }
+  return output;
+}
+
+string get_mode_topic_name(Mode const mode)
+{
+  string output;
+  switch (mode)
+  {
+    case KVH_DSP3000_RATE:
+      output = "rate";
+      break;
+    case KVH_DSP3000_INCREMENTAL_ANGLE:
+      output = "incremental_angle";
+      break;
+    case KVH_DSP3000_INTEGRATED_ANGLE:
+      output = "integrated_angle";
+      break;
+    default:
+      assert(!"mode not understood");
+  }
+  return output;
+}
+
+bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
+{
+  bool output = true;
+
+  ROS_INFO("Zeroing the DSP-3000.");
+  try
+  {
+    // Start by zeroing the sensor.  Write three times, to ensure it is received
+    device->write("ZZZ", 3);
+  }
+  catch (cereal::TimeoutException &e)
+  {
+    ROS_ERROR("Unable to communicate with DSP-3000 device.");
+    output = false;
+  }
+
+  if (output)
+  {
+    tuple<string, string> mode_data(get_mode_data(mode));
+    ROS_INFO("Configuring for %s output.", get<1>(mode_data).c_str());
+    try
+    {
+      device->write(get<0>(mode_data).c_str(),
+                    static_cast<int>(get<0>(mode_data).size()));
+    }
+    catch (cereal::TimeoutException &e)
+    {
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
+    }
+  }
+
+  return output;
+}
 
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "dsp3000");
 
-  ros::NodeHandle n;
-
-  // Grab the port name passed by the launch file.  If the launch file was not used, or the desired
-  // port is not present, default to /dev/ttyUSB0.
   string port_name;
   ros::param::param<std::string>("~port", port_name, "/dev/ttyUSB0");
+  int32_t mode;
+  ros::param::param<int32_t>("~mode", mode, KVH_DSP3000_RATE);
+  if (mode != KVH_DSP3000_RATE &&
+      mode != KVH_DSP3000_INCREMENTAL_ANGLE &&
+      mode != KVH_DSP3000_INTEGRATED_ANGLE)
+  {
+    ROS_ERROR("bad mode: %d", mode);
+    return EXIT_FAILURE;
+  }
+  bool invert = false;
+  ros::param::param<bool>("~invert", invert, invert);
 
   // Define the publisher topic name
-  ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>("dsp3000", 1000);
-
-  //ros::Rate loop_rate(100);
+  ros::NodeHandle n;
+  ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>(
+      "dsp3000_" + get_mode_topic_name(static_cast<Mode>(mode)), 100);
 
   cereal::CerealPort device;
 
-  char reply[64];
-  float rotate;
-  int valid;
-
-  // Open a port as defined in the launch file.  The DSP-3000 baud rate is 38400.
-  try{ device.open(port_name.c_str(), 38400); }
-  catch(cereal::Exception& e)
+  try
   {
-      ROS_FATAL("Failed to open the serial port!!!");
-      ROS_BREAK();
+    device.open(port_name.c_str(), 38400);
   }
-  ROS_INFO("The serial port is opened.");
+  catch (cereal::Exception &e)
+  {
+    ROS_FATAL("%s", e.what());
+    return EXIT_FAILURE;
+  }
+  ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
 
-  // Configure the DSP-3000.
-  // Start by zeroing the sensor.  Write three times, to ensure it is received (according to datasheet)
-  ROS_INFO("Zeroing the DSP-3000.");
-  try{ device.write("ZZZ", 3); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Unable to communicate with DSP-3000 device.");
-    }
-
-  // Set to "Rate" output.  R=Rate, A=Incremental Angle, P=Integrated Angle
-  ROS_INFO("Configuring for Rate output.");
-  try{ device.write("RRR", 3); }
-  catch(cereal::TimeoutException& e)
-    {
-      ROS_ERROR("Unable to communicate with DSP-3000 device.");
-    }
-
+  configure_dsp3000(&device, static_cast<Mode>(mode));
+  device.flush();
+  static const int TEMP_BUFFER_SIZE = 128;
+  char temp_buffer[TEMP_BUFFER_SIZE];
   while (ros::ok())
   {
-    
     // Get the reply, the last value is the timeout in ms
-    try{ device.readLine(reply, TIMEOUT); }
-    catch(cereal::TimeoutException& e)
+    int temp_buffer_length = 0;
+    try
+    {
+      temp_buffer_length =
+          device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
+    }
+    catch (cereal::TimeoutException &e)
+    {
+      ROS_ERROR("Unable to communicate with DSP-3000 device.");
+      continue;
+    }
+    catch (cereal::Exception &e)
+    {
+      int32_t constexpr INTERRUPTED_SYSTEM_CALL_ERRNO = 4;
+      if (INTERRUPTED_SYSTEM_CALL_ERRNO != errno)
       {
-        ROS_ERROR("Unable to communicate with DSP-3000 device.");
+        ROS_ERROR("%s", e.what());
       }
+      continue;
+    }
 
-    string str(reply);
-    string buf; // A buffer string
-    stringstream ss(str); // Insert the string into a stream
-    vector<string> tokens; // Create a vector to hold the words
 
-    while (ss >> buf)
-      tokens.push_back(buf);
+    static char const *const ENDING_SEQUENCE = "\r\n";
+    static size_t const ENDING_SEQUENCE_LENGTH = strlen(ENDING_SEQUENCE);
+    string str(temp_buffer, temp_buffer_length - ENDING_SEQUENCE_LENGTH);
+    stringstream ss(str);
+    vector<string> tokens;
+    string ss_buf;
+    while (ss >> ss_buf)
+      tokens.push_back(ss_buf);
 
-    // Extract the data we want from the string vector.
-    rotate = atof(tokens[0].c_str());
-    valid = atoi(tokens[1].c_str());
+    if (!(tokens.size() & 1))
+    {
+      // Extra loop to publish extra readings
+      for (size_t offset = 0; offset < tokens.size() / 2; offset += 2)
+      {
+        const float rotate = static_cast<float>(atof(tokens[offset].c_str()));
+        const bool data_is_valid =
+            1 == atoi(tokens[offset + 1].c_str());
 
-    // Used for debugging.  The DSP-3000 outputs a "valid" flag as long as the
-    //data being output is OK.
-    ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
-    if (valid==1)
-         ROS_DEBUG("Data is valid");
-    
+        ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
+        if (data_is_valid)
+          ROS_DEBUG("Data is valid");
 
-    //Declare the sensor message
-    std_msgs::Float32 dsp_out;
-    dsp_out.data = (rotate * PI) / 180;
+        // Declare the sensor message
+        std_msgs::Float32 dsp_out;
+        float const rotation_measurement_rad = (rotate * PI) / 180.0f;
+        dsp_out.data = (invert ? -rotation_measurement_rad
+                               : rotation_measurement_rad);
 
-    //Publish the joint state message
-    dsp3000_pub.publish(dsp_out);
+        // Publish the joint state message
+        dsp3000_pub.publish(dsp_out);
+      }
+    }
+    else
+    {
+      ROS_WARN("Bad data. Received data \"%s\" of length %i", ss.str().c_str(),
+               static_cast<int>(tokens.size()));
+    }
 
     ros::spinOnce();
-
-    //loop_rate.sleep();
-
   }
 
   return 0;
-
 }
