@@ -8,10 +8,8 @@
 
   <url type="website">None</url>
 
-  <author>
-    Jeff Schmidt
-    Geoffrey Viola
-  </author>
+  <author>Jeff Schmidt</author>
+  <author>Geoffrey Viola</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 
