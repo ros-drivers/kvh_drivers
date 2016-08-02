@@ -34,16 +34,16 @@
  *
  */
 
-#include "cereal_port/CerealPort.h"
-#include "ros/ros.h"
-#include "std_msgs/Float32.h"
 #include <math.h>
-#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <vector>
+#include <sstream>
 #include <tuple>
+#include <vector>
+#include "cereal_port/CerealPort.h"
+#include "ros/ros.h"
+#include "std_msgs/Float32.h"
 
 const int TIMEOUT = 1000;
 const float PI = 3.14159265359f;
@@ -133,8 +133,7 @@ bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
     ROS_INFO("Configuring for %s output.", get<1>(mode_data).c_str());
     try
     {
-      device->write(get<0>(mode_data).c_str(),
-                    static_cast<int>(get<0>(mode_data).size()));
+      device->write(get<0>(mode_data).c_str(), static_cast<int>(get<0>(mode_data).size()));
     }
     catch (cereal::TimeoutException &e)
     {
@@ -153,9 +152,7 @@ int main(int argc, char **argv)
   ros::param::param<std::string>("~port", port_name, "/dev/ttyUSB0");
   int32_t mode;
   ros::param::param<int32_t>("~mode", mode, KVH_DSP3000_RATE);
-  if (mode != KVH_DSP3000_RATE &&
-      mode != KVH_DSP3000_INCREMENTAL_ANGLE &&
-      mode != KVH_DSP3000_INTEGRATED_ANGLE)
+  if (mode != KVH_DSP3000_RATE && mode != KVH_DSP3000_INCREMENTAL_ANGLE && mode != KVH_DSP3000_INTEGRATED_ANGLE)
   {
     ROS_ERROR("bad mode: %d", mode);
     return EXIT_FAILURE;
@@ -165,8 +162,8 @@ int main(int argc, char **argv)
 
   // Define the publisher topic name
   ros::NodeHandle n;
-  ros::Publisher dsp3000_pub = n.advertise<std_msgs::Float32>(
-      "dsp3000_" + get_mode_topic_name(static_cast<Mode>(mode)), 100);
+  ros::Publisher dsp3000_pub =
+      n.advertise<std_msgs::Float32>("dsp3000_" + get_mode_topic_name(static_cast<Mode>(mode)), 100);
 
   cereal::CerealPort device;
 
@@ -191,8 +188,7 @@ int main(int argc, char **argv)
     int temp_buffer_length = 0;
     try
     {
-      temp_buffer_length =
-          device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
+      temp_buffer_length = device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
     }
     catch (cereal::TimeoutException &e)
     {
@@ -209,7 +205,6 @@ int main(int argc, char **argv)
       continue;
     }
 
-
     static char const *const ENDING_SEQUENCE = "\r\n";
     static size_t const ENDING_SEQUENCE_LENGTH = strlen(ENDING_SEQUENCE);
     string str(temp_buffer, temp_buffer_length - ENDING_SEQUENCE_LENGTH);
@@ -225,8 +220,7 @@ int main(int argc, char **argv)
       for (size_t offset = 0; offset < tokens.size() / 2; offset += 2)
       {
         const float rotate = static_cast<float>(atof(tokens[offset].c_str()));
-        const bool data_is_valid =
-            1 == atoi(tokens[offset + 1].c_str());
+        const bool data_is_valid = 1 == atoi(tokens[offset + 1].c_str());
 
         ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
         if (data_is_valid)
@@ -235,8 +229,7 @@ int main(int argc, char **argv)
         // Declare the sensor message
         std_msgs::Float32 dsp_out;
         float const rotation_measurement_rad = (rotate * PI) / 180.0f;
-        dsp_out.data = (invert ? -rotation_measurement_rad
-                               : rotation_measurement_rad);
+        dsp_out.data = (invert ? -rotation_measurement_rad : rotation_measurement_rad);
 
         // Publish the joint state message
         dsp3000_pub.publish(dsp_out);
@@ -244,8 +237,7 @@ int main(int argc, char **argv)
     }
     else
     {
-      ROS_WARN("Bad data. Received data \"%s\" of length %i", ss.str().c_str(),
-               static_cast<int>(tokens.size()));
+      ROS_WARN("Bad data. Received data \"%s\" of length %i", ss.str().c_str(), static_cast<int>(tokens.size()));
     }
 
     ros::spinOnce();
