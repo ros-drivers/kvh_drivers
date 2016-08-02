@@ -39,14 +39,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sstream>
+#include <string>
 #include <tuple>
 #include <vector>
-#include "cereal_port/CerealPort.h"
 #include "ros/ros.h"
+#include "kvh/serial_port.h"
 #include "std_msgs/Float32.h"
 
-const int TIMEOUT = 1000;
-const float PI = 3.14159265359f;
+static constexpr int TIMEOUT = 1000;
+static constexpr float PI = 3.14159265359f;
 
 using std::string;
 using std::stringstream;
@@ -61,10 +62,10 @@ enum Mode
   KVH_DSP3000_INTEGRATED_ANGLE
 };
 
-///@return serial string, mode name
+/// @return serial string, mode name
 tuple<string, string> get_mode_data(Mode mode);
 
-bool configure_dsp3000(cereal::CerealPort *device, Mode mode);
+bool configure_dsp3000(SerialPort *device, Mode mode);
 
 string get_mode_topic_name(Mode const mode);
 
@@ -111,7 +112,7 @@ string get_mode_topic_name(Mode const mode)
   return output;
 }
 
-bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
+bool configure_dsp3000(SerialPort *const device, Mode const mode)
 {
   bool output = true;
 
@@ -121,7 +122,7 @@ bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
     // Start by zeroing the sensor.  Write three times, to ensure it is received
     device->write("ZZZ", 3);
   }
-  catch (cereal::TimeoutException &e)
+  catch (SerialTimeoutException &e)
   {
     ROS_ERROR("Unable to communicate with DSP-3000 device.");
     output = false;
@@ -135,7 +136,7 @@ bool configure_dsp3000(cereal::CerealPort *const device, Mode const mode)
     {
       device->write(get<0>(mode_data).c_str(), static_cast<int>(get<0>(mode_data).size()));
     }
-    catch (cereal::TimeoutException &e)
+    catch (SerialTimeoutException &e)
     {
       ROS_ERROR("Unable to communicate with DSP-3000 device.");
     }
@@ -165,13 +166,13 @@ int main(int argc, char **argv)
   ros::Publisher dsp3000_pub =
       n.advertise<std_msgs::Float32>("dsp3000_" + get_mode_topic_name(static_cast<Mode>(mode)), 100);
 
-  cereal::CerealPort device;
+  SerialPort device;
 
   try
   {
     device.open(port_name.c_str(), 38400);
   }
-  catch (cereal::Exception &e)
+  catch (SerialException &e)
   {
     ROS_FATAL("%s", e.what());
     return EXIT_FAILURE;
@@ -190,12 +191,12 @@ int main(int argc, char **argv)
     {
       temp_buffer_length = device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
     }
-    catch (cereal::TimeoutException &e)
+    catch (SerialTimeoutException &e)
     {
       ROS_ERROR("Unable to communicate with DSP-3000 device.");
       continue;
     }
-    catch (cereal::Exception &e)
+    catch (SerialException &e)
     {
       int32_t constexpr INTERRUPTED_SYSTEM_CALL_ERRNO = 4;
       if (INTERRUPTED_SYSTEM_CALL_ERRNO != errno)

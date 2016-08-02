@@ -1,4 +1,0 @@
-Adapted from: http://isr-uc-ros-pkg.googlecode.com/svn/stacks/serial_communication/trunk/
-
-cereal_port is considered to be abandonware, and such has been integrated into
-this driver independent of the source.
