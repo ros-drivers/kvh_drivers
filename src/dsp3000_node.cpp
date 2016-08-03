@@ -1,6 +1,6 @@
 /**
  *
- *  \file	dsp3000.cpp
+ *  \file	dsp3000_node.cpp
  *  \brief      KVH DSP-3000 Fiber optic gyro controller.
  *              Parses data from DSP-3000 and publishes to dsp3000.
  *		Serial interface handled by cereal_port
@@ -42,8 +42,10 @@
 #include <string>
 #include <tuple>
 #include <vector>
-#include "ros/ros.h"
+#include "kvh/dsp3000_mode.h"
+#include "kvh/dsp3000_parser.h"
 #include "kvh/serial_port.h"
+#include "ros/ros.h"
 #include "std_msgs/Float32.h"
 
 static constexpr int TIMEOUT = 1000;
@@ -55,21 +57,14 @@ using std::vector;
 using std::tuple;
 using std::get;
 
-enum Mode
-{
-  KVH_DSP3000_RATE = 0,
-  KVH_DSP3000_INCREMENTAL_ANGLE,
-  KVH_DSP3000_INTEGRATED_ANGLE
-};
-
 /// @return serial string, mode name
-tuple<string, string> get_mode_data(Mode mode);
+tuple<string, string> get_mode_data(KvhDsp3000Mode mode);
 
-bool configure_dsp3000(SerialPort *device, Mode mode);
+bool configure_dsp3000(SerialPort *device, KvhDsp3000Mode mode);
 
-string get_mode_topic_name(Mode const mode);
+string get_mode_topic_name(KvhDsp3000Mode const mode);
 
-tuple<string, string> get_mode_data(Mode const mode)
+tuple<string, string> get_mode_data(KvhDsp3000Mode const mode)
 {
   tuple<string, string> output;
   switch (mode)
@@ -92,7 +87,7 @@ tuple<string, string> get_mode_data(Mode const mode)
   return output;
 }
 
-string get_mode_topic_name(Mode const mode)
+string get_mode_topic_name(KvhDsp3000Mode const mode)
 {
   string output;
   switch (mode)
@@ -112,7 +107,7 @@ string get_mode_topic_name(Mode const mode)
   return output;
 }
 
-bool configure_dsp3000(SerialPort *const device, Mode const mode)
+bool configure_dsp3000(SerialPort *const device, KvhDsp3000Mode const mode)
 {
   bool output = true;
 
@@ -164,7 +159,7 @@ int main(int argc, char **argv)
   // Define the publisher topic name
   ros::NodeHandle n;
   ros::Publisher dsp3000_pub =
-      n.advertise<std_msgs::Float32>("dsp3000_" + get_mode_topic_name(static_cast<Mode>(mode)), 100);
+      n.advertise<std_msgs::Float32>("dsp3000_" + get_mode_topic_name(static_cast<KvhDsp3000Mode>(mode)), 100);
 
   SerialPort device;
 
@@ -179,66 +174,80 @@ int main(int argc, char **argv)
   }
   ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
 
-  configure_dsp3000(&device, static_cast<Mode>(mode));
+  configure_dsp3000(&device, static_cast<KvhDsp3000Mode>(mode));
   device.flush();
-  static const int TEMP_BUFFER_SIZE = 128;
-  char temp_buffer[TEMP_BUFFER_SIZE];
+  char temp_buffer[128];
+  bool user_notified_of_timeout = false;
+  int previous_errno = 0;
+  bool receiving_continuous_messages = false;
+  int temp_buffer_length = 0;
   while (ros::ok())
   {
     // Get the reply, the last value is the timeout in ms
-    int temp_buffer_length = 0;
     try
     {
-      temp_buffer_length = device.readLine(temp_buffer, TEMP_BUFFER_SIZE, TIMEOUT);
+      // Subtract 1 from sizeof(temp_buffer) because we will manually null terminate later
+      temp_buffer_length += device.readLine(temp_buffer + temp_buffer_length, sizeof(temp_buffer) - 1, TIMEOUT);
     }
     catch (SerialTimeoutException &e)
     {
-      ROS_ERROR("Unable to communicate with DSP-3000 device.");
+      if (!user_notified_of_timeout)
+      {
+        ROS_ERROR("Timed out while talking with DSP-3000 device.");
+        user_notified_of_timeout = true;
+        receiving_continuous_messages = false;
+      }
       continue;
     }
     catch (SerialException &e)
     {
       int32_t constexpr INTERRUPTED_SYSTEM_CALL_ERRNO = 4;
-      if (INTERRUPTED_SYSTEM_CALL_ERRNO != errno)
+      if (INTERRUPTED_SYSTEM_CALL_ERRNO != errno && previous_errno != errno)
       {
         ROS_ERROR("%s", e.what());
       }
+      previous_errno = errno;
+      receiving_continuous_messages = false;
       continue;
     }
 
-    static char const *const ENDING_SEQUENCE = "\r\n";
-    static size_t const ENDING_SEQUENCE_LENGTH = strlen(ENDING_SEQUENCE);
-    string str(temp_buffer, temp_buffer_length - ENDING_SEQUENCE_LENGTH);
-    stringstream ss(str);
-    vector<string> tokens;
-    string ss_buf;
-    while (ss >> ss_buf)
-      tokens.push_back(ss_buf);
-
-    if (!(tokens.size() & 1))
+    if (user_notified_of_timeout || 0 != previous_errno)
     {
-      // Extra loop to publish extra readings
-      for (size_t offset = 0; offset < tokens.size() / 2; offset += 2)
-      {
-        const float rotate = static_cast<float>(atof(tokens[offset].c_str()));
-        const bool data_is_valid = 1 == atoi(tokens[offset + 1].c_str());
-
-        ROS_DEBUG("Raw DSP-3000 Output: %f", rotate);
-        if (data_is_valid)
-          ROS_DEBUG("Data is valid");
-
-        // Declare the sensor message
-        std_msgs::Float32 dsp_out;
-        float const rotation_measurement_rad = (rotate * PI) / 180.0f;
-        dsp_out.data = (invert ? -rotation_measurement_rad : rotation_measurement_rad);
-
-        // Publish the joint state message
-        dsp3000_pub.publish(dsp_out);
-      }
+      ROS_INFO("Receiving data");
+      previous_errno = 0;
+      user_notified_of_timeout = false;
     }
-    else
+
+    bool parser_is_working = true;
+    while (temp_buffer_length > 0 && parser_is_working)
     {
-      ROS_WARN("Bad data. Received data \"%s\" of length %i", ss.str().c_str(), static_cast<int>(tokens.size()));
+      ParseDsp3000Data const parsed_data(parse_dsp3000(temp_buffer, temp_buffer_length));
+      parser_is_working = parsed_data.did_parser_succeed;
+      temp_buffer_length = parsed_data.new_buffer_length;
+
+      if (parsed_data.did_parser_succeed)
+      {
+        if (!parsed_data.is_sensor_data_valid)
+        {
+          ROS_ERROR("Sensor data is invalid");
+        }
+        else
+        {
+          // Declare the sensor message
+          std_msgs::Float32 dsp_out;
+          float const rotation_measurement_rad = (parsed_data.value * PI) / 180.0f;
+          dsp_out.data = (invert ? -rotation_measurement_rad : rotation_measurement_rad);
+
+          // Publish the joint state message
+          dsp3000_pub.publish(dsp_out);
+        }
+      }
+      else if (receiving_continuous_messages)
+      {
+        temp_buffer[temp_buffer_length] = '\0';
+        ROS_WARN("Bad data. Received data \"%s\" of length %i", temp_buffer, temp_buffer_length);
+      }
+      receiving_continuous_messages = true;
     }
 
     ros::spinOnce();
