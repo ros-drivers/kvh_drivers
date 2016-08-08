@@ -175,19 +175,23 @@ int main(int argc, char **argv)
   ROS_INFO("The serial port named \"%s\" is opened.", port_name.c_str());
 
   configure_dsp3000(&device, static_cast<KvhDsp3000Mode>(mode));
-  device.flush();
   char temp_buffer[128];
   bool user_notified_of_timeout = false;
   int previous_errno = 0;
-  bool receiving_continuous_messages = false;
+  bool ignoring_buffer_overflow = true;
   int temp_buffer_length = 0;
+  uint8_t temporary_buffer_ignore_limit = 0U;
+  bool streaming_data = false;
   while (ros::ok())
   {
     // Get the reply, the last value is the timeout in ms
     try
     {
       // Subtract 1 from sizeof(temp_buffer) because we will manually null terminate later
-      temp_buffer_length += device.readLine(temp_buffer + temp_buffer_length, sizeof(temp_buffer) - 1, TIMEOUT);
+      int const new_bytes =
+          device.readLine(&temp_buffer[temp_buffer_length], sizeof(temp_buffer) - temp_buffer_length - 1, TIMEOUT);
+      temp_buffer_length += new_bytes;
+      ignoring_buffer_overflow = false;
     }
     catch (SerialTimeoutException &e)
     {
@@ -195,9 +199,16 @@ int main(int argc, char **argv)
       {
         ROS_ERROR("Timed out while talking with DSP-3000 device.");
         user_notified_of_timeout = true;
-        receiving_continuous_messages = false;
       }
       continue;
+    }
+    catch (SerialBufferFilledException &e)
+    {
+      if (!ignoring_buffer_overflow)
+      {
+        ROS_ERROR("%s", e.what());
+      }
+      temp_buffer_length = sizeof(temp_buffer) - 1;
     }
     catch (SerialException &e)
     {
@@ -207,7 +218,6 @@ int main(int argc, char **argv)
         ROS_ERROR("%s", e.what());
       }
       previous_errno = errno;
-      receiving_continuous_messages = false;
       continue;
     }
 
@@ -218,12 +228,20 @@ int main(int argc, char **argv)
       user_notified_of_timeout = false;
     }
 
+    if (!streaming_data)
+    {
+      streaming_data = true;
+      ROS_INFO("streaming data");
+    }
+
     bool parser_is_working = true;
+    int previous_temp_buffer_length = temp_buffer_length;
     while (temp_buffer_length > 0 && parser_is_working)
     {
       ParseDsp3000Data const parsed_data(parse_dsp3000(temp_buffer, temp_buffer_length));
-      parser_is_working = parsed_data.did_parser_succeed;
+      parser_is_working = previous_temp_buffer_length != parsed_data.new_buffer_length;
       temp_buffer_length = parsed_data.new_buffer_length;
+      previous_temp_buffer_length = temp_buffer_length;
 
       if (parsed_data.did_parser_succeed)
       {
@@ -242,12 +260,15 @@ int main(int argc, char **argv)
           dsp3000_pub.publish(dsp_out);
         }
       }
-      else if (receiving_continuous_messages)
+      else if (!ignoring_buffer_overflow && temporary_buffer_ignore_limit >= 100)
       {
         temp_buffer[temp_buffer_length] = '\0';
         ROS_WARN("Bad data. Received data \"%s\" of length %i", temp_buffer, temp_buffer_length);
       }
-      receiving_continuous_messages = true;
+      else
+      {
+        ++temporary_buffer_ignore_limit;
+      }
     }
 
     ros::spinOnce();

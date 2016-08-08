@@ -55,6 +55,14 @@ public:
   }
 };
 
+class SerialBufferFilledException : public SerialException
+{
+public:
+    explicit SerialBufferFilledException(const char* msg) : SerialException(msg)
+    {
+    }
+};
+
 class SerialTimeoutException : public SerialException
 {
 public:
