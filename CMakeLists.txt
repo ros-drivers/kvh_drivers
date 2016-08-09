@@ -25,6 +25,10 @@ target_link_libraries(dsp3000_parser_utest dsp3000_parser_lib)
 install(TARGETS dsp3000
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+install(TARGETS dsp3000_parser_lib
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+)
 
 roslint_cpp()
 roslint_add_test()
