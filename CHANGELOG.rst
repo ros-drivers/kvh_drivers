@@ -2,8 +2,8 @@
 Changelog for package kvh
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.1 (2016-08-13)
+------------------
 * added installation path for library
 * quiting starting warning
 * unit tested driver
