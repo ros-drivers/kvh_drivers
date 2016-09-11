@@ -76,7 +76,7 @@ int find_mode_index(char const *const buffer, int const buffer_size, int const v
     ++mode_index;
   }
   return mode_index;
-};
+}
 
 ParseDsp3000Data parse_dsp3000(char *const buffer, int const buffer_size)
 {

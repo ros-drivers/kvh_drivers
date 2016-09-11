@@ -8,7 +8,7 @@ catkin_package()
 set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include;${catkin_INCLUDE_DIRS}")
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  set_directory_properties(PROPERTIES COMPILE_OPTIONS "-std=c++11;-Wall;-Wextra;-Werror")
+  set_directory_properties(PROPERTIES COMPILE_OPTIONS "-std=c++11;-Wall;-Wextra")
 endif()
 
 add_library(dsp3000_parser_lib src/dsp3000_parser.cpp)
