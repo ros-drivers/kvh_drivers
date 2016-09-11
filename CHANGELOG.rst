@@ -2,6 +2,11 @@
 Changelog for package kvh
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* relaxed errors as warnings
+* Contributors: Geoff Viola
+
 1.0.1 (2016-08-13)
 ------------------
 * added installation path for library
