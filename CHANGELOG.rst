@@ -2,8 +2,8 @@
 Changelog for package kvh
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.2 (2016-09-10)
+------------------
 * relaxed errors as warnings
 * Contributors: Geoff Viola
 
