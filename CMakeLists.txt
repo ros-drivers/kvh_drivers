@@ -19,8 +19,10 @@ target_link_libraries(dsp3000 dsp3000_parser_lib)
 find_package(Boost REQUIRED COMPONENTS thread system)
 target_link_libraries(dsp3000 ${Boost_LIBRARIES})
 
-catkin_add_gtest(dsp3000_parser_utest test/dsp3000_parser_utest.cpp)
-target_link_libraries(dsp3000_parser_utest dsp3000_parser_lib)
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(dsp3000_parser_utest test/dsp3000_parser_utest.cpp)
+  target_link_libraries(dsp3000_parser_utest dsp3000_parser_lib)
+endif()
 
 install(TARGETS dsp3000
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
