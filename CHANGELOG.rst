@@ -2,8 +2,8 @@
 Changelog for package kvh
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.3 (2017-03-11)
+------------------
 * fixed pkg name for launch file
 * added check for testing to remove builder warning
 * added auto generated wiki page for documentation
