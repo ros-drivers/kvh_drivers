@@ -1,5 +1,6 @@
 <launch>
+    <arg name="port" default="/dev/clearpath/fog" />
     <node pkg="kvh" type="dsp3000" name="dsp3000" respawn="true">
-        <param name="port" type="string" value="/dev/clearpath/fog"/>
+        <param name="port" type="string" value="$(arg port)"/>
     </node>
 </launch>
